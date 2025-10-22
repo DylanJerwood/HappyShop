@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -67,12 +68,20 @@ public class CustomerModel {
         if(theProduct!= null){
 
             // trolley.add(theProduct) — Product is appended to the end of the trolley.
-            // To keep the trolley organized, add code here or call a method that:
-            //TODO
-            // 1. Merges items with the same product ID (combining their quantities).
-            // 2. Sorts the products in the trolley by product ID.
-            trolley.add(theProduct);
-            displayTaTrolley = ProductListFormatter.buildString(trolley); //build a String for trolley so that we can show it
+            // To keep the trolley organized, add code here or call a method that
+            boolean found = false;      // Bool to track in product is already in trolly
+            for (Product p : trolley){
+                if(theProduct.getProductId().equals(p.getProductId())){
+                    p.setOrderedQuantity(p.getOrderedQuantity() + 1);
+                    found = true;
+                    break;
+                }
+            }
+            if (!found){
+                trolley.add(theProduct);
+            }
+            trolley.sort(Comparator.comparing(Product::getProductId));    // Sorts the arraylist by productId in ascending order
+            displayTaTrolley = ProductListFormatter.buildString(trolley); // Build a String for trolley so that we can show it
         }
         else{
             displayLaSearchResult = "Please search for an available product before adding it to the trolley";
