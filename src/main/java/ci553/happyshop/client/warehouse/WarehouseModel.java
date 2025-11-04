@@ -175,7 +175,7 @@ public class WarehouseModel {
 
     void doChangeStockBy(String addOrSub) throws SQLException {
         int oldStock = Integer.parseInt(view.tfStockEdit.getText().trim());
-        int newStock =oldStock;
+        int newStock = oldStock;
         String TextChangeBy = view.tfChangeByEdit.getText().trim();
         if(!TextChangeBy.isEmpty()){
             if(validateInputChangeStockBy(TextChangeBy)==false){

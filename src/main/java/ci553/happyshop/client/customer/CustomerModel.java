@@ -27,7 +27,7 @@ public class CustomerModel {
     public DatabaseRW databaseRW; //Interface type, not specific implementation
                                   //Benefits: Flexibility: Easily change the database implementation.
 
-    private Product theProduct =null; // product found from search
+    private Product theProduct = null; // product found from search
     private ArrayList<Product> trolley =  new ArrayList<>(); // a list of products in trolley
 
     // Four UI elements to be passed to CustomerView for display updates.
@@ -66,11 +66,8 @@ public class CustomerModel {
 
     void addToTrolley(){
         if(theProduct!= null){
-
-            // trolley.add(theProduct) — Product is appended to the end of the trolley.
-            // To keep the trolley organized, add code here or call a method that
-            boolean found = false;      // Bool to track in product is already in trolly
-            for (Product p : trolley){
+            boolean found = false;      // Bool to track in product is already in trolley
+            for (Product p : trolley){  // Checks if product is already in trolley
                 if(theProduct.getProductId().equals(p.getProductId())){
                     p.setOrderedQuantity(p.getOrderedQuantity() + 1);
                     found = true;
@@ -78,9 +75,12 @@ public class CustomerModel {
                 }
             }
             if (!found){
+                // trolley.add(theProduct) — Product is appended to the end of the trolley.
                 trolley.add(theProduct);
             }
-            trolley.sort(Comparator.comparing(Product::getProductId));    // Sorts the arraylist by productId in ascending order
+            System.out.println(theProduct.getOrderedQuantity());
+            //  CAN USE OrganizeTrolley() WITHOUT COMPARATOR, COMPARATOR VERSION IS USED FOR FLEXIBILITY
+            trolley = OrganizeTrolley(trolley, Comparator.comparing(Product::getProductId));
             displayTaTrolley = ProductListFormatter.buildString(trolley); // Build a String for trolley so that we can show it
         }
         else{
@@ -98,8 +98,8 @@ public class CustomerModel {
             // If any products are insufficient, the update will be rolled back.
             // If all products are sufficient, the database will be updated, and insufficientProducts will be empty.
             // Note: If the trolley is already organized (merged and sorted), grouping is unnecessary.
-            ArrayList<Product> groupedTrolley= groupProductsById(trolley);
-            ArrayList<Product> insufficientProducts= databaseRW.purchaseStocks(groupedTrolley);
+            ArrayList<Product> groupedTrolley = groupProductsById(trolley);
+            ArrayList<Product> insufficientProducts = databaseRW.purchaseStocks(groupedTrolley);
 
             if(insufficientProducts.isEmpty()){ // If stock is sufficient for all products
                 //get OrderHub and tell it to make a new Order
@@ -145,18 +145,29 @@ public class CustomerModel {
     /**
      * Groups products by their productId to optimize database queries and updates.
      * By grouping products, we can check the stock for a given `productId` once, rather than repeatedly
+     *
+     * @param proList The list of products to group.
+     * @return A new ArrayList of products, each with unique productId and correct total orderedQuantity.
      */
     private ArrayList<Product> groupProductsById(ArrayList<Product> proList) {
         Map<String, Product> grouped = new HashMap<>();
         for (Product p : proList) {
             String id = p.getProductId();
             if (grouped.containsKey(id)) {
+                // Add the current products ordered quantity to the existing product
                 Product existing = grouped.get(id);
                 existing.setOrderedQuantity(existing.getOrderedQuantity() + p.getOrderedQuantity());
             } else {
-                // Make a shallow copy to avoid modifying the original
-                grouped.put(id,new Product(p.getProductId(),p.getProductDescription(),
-                        p.getProductImageName(),p.getUnitPrice(),p.getStockQuantity()));
+                // Create a copy of the product to preserve orderedQuantity
+                Product copy = new Product(
+                        p.getProductId(),
+                        p.getProductDescription(),
+                        p.getProductImageName(),
+                        p.getUnitPrice(),
+                        p.getStockQuantity()
+                );
+                copy.setOrderedQuantity(p.getOrderedQuantity()); //PRESERVE QUANTITY
+                grouped.put(id, copy);
             }
         }
         return new ArrayList<>(grouped.values());
@@ -192,5 +203,52 @@ public class CustomerModel {
     //for test only
     public ArrayList<Product> getTrolley() {
         return trolley;
+    }
+
+    /**
+     * Organizes (sorts) the products in the trolley by their product ID in ascending order.
+     * <p>
+     * This method uses Java's built-in functional-style Comparator with a method reference,
+     * which is equivalent in functionality to a lambda expression such as:
+     * <pre>{@code
+     * prodList.sort((p1, p2) -> p1.getProductId().compareTo(p2.getProductId()));
+     * }</pre>
+     * Using method references makes the intent clearer and code more concise.
+     *
+     * @param prodList The list of products currently in the customer's trolley.
+     * @ret
+     * */
+    public ArrayList<Product> OrganizeTrolley(ArrayList<Product> prodList) {
+        if (prodList == null || prodList.isEmpty()) {  // validation check against empty lists
+            return prodList;
+        }
+
+        prodList.sort(Comparator.comparing(Product::getProductId));
+        // Alternate example: lambda
+        // prodList.sort((p1, p2) -> p1.getProductId().compareTo(p2.getProductId()));
+        return prodList;
+    }
+
+    /**
+     * Sorts the trolley by a custom comparator.
+     * <p>
+     * This allows sorting by product ID, price, description, etc.,
+     * promoting flexibility and extensibility in the storefront design.
+     * <p>
+     * Example usage:
+     * <pre>{@code
+     * sortTrolley(Comparator.comparing(Product::getUnitPrice)); // Sort by price
+     * sortTrolley(Comparator.comparing(Product::getProductDescription)); // Sort by name
+     * }</pre>
+     *
+     * @param comparator The comparator defining the sort order.
+     */
+    public ArrayList<Product> OrganizeTrolley(ArrayList<Product> prodList, Comparator<Product> comparator) {
+        if (prodList == null || prodList.isEmpty()) {  // validation check against empty lists
+            return prodList;
+        }
+
+        prodList.sort(Comparator.comparing(Product::getProductId));
+        return prodList;
     }
 }
