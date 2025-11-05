@@ -110,9 +110,19 @@ public class CustomerView  {
 
         lbProductInfo = new Label("Thank you for shopping with us.");
         lbProductInfo.setWrapText(true);
-        lbProductInfo.setMinHeight(Label.USE_PREF_SIZE);  // Allow auto-resize
         lbProductInfo.setStyle(UIStyle.labelMulLineStyle);
-        HBox hbSearchResult = new HBox(5, ivProduct, lbProductInfo);
+        lbProductInfo.setMinHeight(Region.USE_PREF_SIZE);  // maintain minimal height
+        lbProductInfo.setMaxWidth(400); // set desired width before wrapping
+
+        // Wrap label in a ScrollPane
+        ScrollPane spProductInfo = new ScrollPane(lbProductInfo);
+        spProductInfo.setPrefWidth(250);
+        spProductInfo.setFitToWidth(true);
+        spProductInfo.setPannable(false);
+        spProductInfo.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        spProductInfo.setPrefViewportHeight(100); // limits visible area height
+
+        HBox hbSearchResult = new HBox(5, ivProduct, spProductInfo);
         hbSearchResult.setAlignment(Pos.CENTER_LEFT);
 
         VBox vbSearchPage = new VBox(15, laPageTitle, hbId, hbName, hbBtns, hbSearchResult);

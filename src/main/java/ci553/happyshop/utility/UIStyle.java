@@ -25,7 +25,7 @@ public record UIStyle() {
 
     public static final int customerWinWidth = 600;
     public static final int customerWinHeight = 300;
-    public static final int removeProNotifierWinWidth = customerWinWidth/2 +160;
+    public static final int removeProNotifierWinWidth = customerWinWidth/2 + 200;
     public static final int removeProNotifierWinHeight = 230;
 
     public static final int pickerWinWidth = 310;

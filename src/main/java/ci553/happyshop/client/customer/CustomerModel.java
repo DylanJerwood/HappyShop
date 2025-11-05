@@ -11,10 +11,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 /**
  * TODO
@@ -78,7 +75,6 @@ public class CustomerModel {
                 // trolley.add(theProduct) — Product is appended to the end of the trolley.
                 trolley.add(theProduct);
             }
-            System.out.println(theProduct.getOrderedQuantity());
             //  CAN USE OrganizeTrolley() WITHOUT COMPARATOR, COMPARATOR VERSION IS USED FOR FLEXIBILITY
             trolley = OrganizeTrolley(trolley, Comparator.comparing(Product::getProductId));
             displayTaTrolley = ProductListFormatter.buildString(trolley); // Build a String for trolley so that we can show it
@@ -115,27 +111,55 @@ public class CustomerModel {
                 );
                 System.out.println(displayTaReceipt);
             }
-            else{ // Some products have insufficient stock — build an error message to inform the customer
-                StringBuilder errorMsg = new StringBuilder();
-                for(Product p : insufficientProducts){
-                    errorMsg.append("\u2022 "+ p.getProductId()).append(", ")
-                            .append(p.getProductDescription()).append(" (Only ")
-                            .append(p.getStockQuantity()).append(" available, ")
-                            .append(p.getOrderedQuantity()).append(" requested)\n");
-                }
-                theProduct=null;
+            else {  // Some products have insufficient stock— build an error message to inform the customer
+                // --- Step 1: Prepare notification message and update trolley accordingly ---
+                StringBuilder errorMsg = new StringBuilder("The following products have insufficient stock:\n");
 
-                //TODO
-                // Add the following logic here:
-                // 1. Remove products with insufficient stock from the trolley.
-                // 2. Trigger a message window to notify the customer about the insufficient stock, rather than directly changing displayLaSearchResult.
-                //You can use the provided RemoveProductNotifier class and its showRemovalMsg method for this purpose.
-                //remember close the message window where appropriate (using method closeNotifierWindow() of RemoveProductNotifier class)
-                displayLaSearchResult = "Checkout failed due to insufficient stock for the following products:\n" + errorMsg.toString();
-                System.out.println("stock is not enough");
+                // Use an iterator to safely modify the trolley
+                Iterator<Product> trolleyIterator = trolley.iterator();
+                while (trolleyIterator.hasNext()) {
+                    Product trolleyProduct = trolleyIterator.next();
+
+                    // Check if this product has insufficient stock
+                    for (Product p : insufficientProducts) {
+                        if (trolleyProduct.getProductId().equals(p.getProductId())) {
+                            int available = p.getStockQuantity();
+                            int requested = trolleyProduct.getOrderedQuantity();
+                            // Append info to the customer message
+                            errorMsg.append(String.format("• %s, %s (Only %d available, %d requested)\n",
+                                    trolleyProduct.getProductId(),
+                                    trolleyProduct.getProductDescription(),
+                                    available,
+                                    requested
+                            ));
+                            // Adjust trolley quantities based on stock
+                            if (available > 0) {
+                                trolleyProduct.setOrderedQuantity(available);
+                            } else {
+                                // Remove product if none left
+                                trolleyIterator.remove();
+                            }
+                            break; // Stop searching insufficientProducts once matched
+                        }
+                    }
+                }
+                theProduct = null;
+                // --- Step 2: Notify customer using a popup window ---
+                RemoveProductNotifier removeProductNotifier = new RemoveProductNotifier();
+                removeProductNotifier.setCusView(cusView);
+                removeProductNotifier.showRemovalMsg(errorMsg.toString());
+
+                // schedule notifier to close automatically after a delay
+                removeProductNotifier.closeNotifierWindowAfterDelay(30000);
+
+                // --- Step 3: Refresh UI display ---
+                displayTaTrolley = ProductListFormatter.buildString(trolley);
+                displayLaSearchResult = "Checkout failed due to insufficient stock:\n" + errorMsg;
+                System.out.println("Stock insufficient — customer notified.");
             }
         }
         else{
+
             displayTaTrolley = "Your trolley is empty";
             System.out.println("Your trolley is empty");
         }
@@ -189,7 +213,7 @@ public class CustomerModel {
             // Get the full absolute path to the image
             Path imageFullPath = Paths.get(relativeImageUrl).toAbsolutePath();
             imageName = imageFullPath.toUri().toString(); //get the image full Uri then convert to String
-            System.out.println("Image absolute path: " + imageFullPath); // Debugging to ensure path is correct
+//            System.out.println("Image absolute path: " + imageFullPath); // Debugging to ensure path is correct
         }
         else{
             imageName = "imageHolder.jpg";

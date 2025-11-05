@@ -2,6 +2,7 @@ package ci553.happyshop.client.customer;
 
 import ci553.happyshop.utility.UIStyle;
 import ci553.happyshop.utility.WindowBounds;
+import javafx.animation.PauseTransition;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
@@ -11,6 +12,7 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import javafx.util.Duration;
 
 /**
  * The RemoveProductNotifier class provides a dependent window that displays messages
@@ -81,8 +83,7 @@ public class RemoveProductNotifier {
 
     private String cutomerActionBuilder(){
         StringBuilder actions = new StringBuilder(" \u26A1 You can now: \n");
-        actions.append("\u2022 Checkout your trolley as it is \n");
-        actions.append("\u2022 Re-add the removed products (up to the available quantity) \n");
+        actions.append("\u2022 Checkout your trolley as it is with the maximum available quantity\n");
         actions.append("\u2022 Or cancel your trolley if you no longer wish to proceed.\n");
         actions.append("Thank you for understanding! \n");
         return  actions.toString();
@@ -100,7 +101,7 @@ public class RemoveProductNotifier {
         window.setTitle("🛒Products removal notifier");
         window.setScene(scene);
 
-        //get bounds of betterCustomer window which trigers the ProductRemovalNotifier
+        //get bounds of betterCustomer window which triggers the ProductRemovalNotifier
         // so that we can put the ProductRemovalNotifier at a suitable position
         WindowBounds bounds = cusView.getWindowBounds();
         window.setX(bounds.x + bounds.width -WIDTH -10); // Position to the right of warehouse window
@@ -128,5 +129,15 @@ public class RemoveProductNotifier {
         if (window != null && window.isShowing()) {
             window.close();
         }
+    }
+
+    public void setCusView(CustomerView CV) {
+        cusView = CV;
+    }
+
+    public void closeNotifierWindowAfterDelay(int milliseconds) {
+        PauseTransition delay = new PauseTransition(Duration.millis(milliseconds));
+        delay.setOnFinished(e -> closeNotifierWindow());
+        delay.play();
     }
 }
