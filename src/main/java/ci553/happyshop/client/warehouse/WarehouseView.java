@@ -82,7 +82,7 @@ public class WarehouseView  {
 
     //ProductFormPage:has two children at a time,
     ComboBox<String> cbProductFormMode; //the first child
-    private VBox vbEditProduct; //the seceond child
+    private VBox vbEditProduct; //the second child
     private VBox vbNewProduct; //another second child
     String theProFormMode ="EDIT";
     /** productFormPage has two children at a time,

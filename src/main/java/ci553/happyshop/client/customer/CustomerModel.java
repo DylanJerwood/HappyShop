@@ -26,6 +26,7 @@ public class CustomerModel {
 
     private Product theProduct = null; // product found from search
     private ArrayList<Product> trolley =  new ArrayList<>(); // a list of products in trolley
+    private ArrayList<Product> searchList = new ArrayList<>(); // search results fetched from the database
 
     // Four UI elements to be passed to CustomerView for display updates.
     private String imageName = "imageHolder.jpg";                // Image to show in product preview (Search Page)
@@ -33,8 +34,46 @@ public class CustomerModel {
     private String displayTaTrolley = "";                                // Text area content showing current trolley items (Trolley Page)
     private String displayTaReceipt = "";                                // Text area content showing receipt after checkout (Receipt Page)
 
-    //SELECT productID, description, image, unitPrice,inStock quantity
+
+    /**
+     * Searches using text entered by the user.
+     * <p>
+     * Behaviour:
+     * <ul>
+     *     <li>If a keyword is present, attempts to access the database.</li>
+     *     <li>If no products were found, displays a message.</li>
+     *     <li>If no keyword is present, clears previous results and prompts for input.</li>
+     *     <li>Any SQL errors are caught and shown to the user.</li>
+     * </ul>
+     * <p>
+     *
+     * @throws SQLException if the database layer reports an unrecoverable error.
+     */
     void search() throws SQLException {
+        final String keyword = cusView.tfId.getText().trim();
+        // --- validation: for no empty searches ---
+        if (keyword.isEmpty()) {
+            handleEmptySearch();
+            updateView();
+            return;
+        }
+
+        try {
+            searchList = databaseRW.searchProduct(keyword);
+            if (searchList.isEmpty()) {
+                displayLaSearchResult = "No products found.";
+            } else {
+                displayLaSearchResult = searchList.size() + " product(s) found.";
+            }
+
+        } catch (SQLException ex) {
+            // Robust DB error handling (can be logged or rethrown based on design)
+            displayLaSearchResult = "Database error during search.";
+            System.err.println("Search failed: " + ex.getMessage());
+            throw ex;  // or log+return depending on design
+        }
+        updateView();
+          /* *PLACEHOLDER NO LONGER NEEDED, ABOVE CODE SERVES SIMILAR PURPOSE HOWEVER BELOW CODE IS LEFT IN FOR COMPARISON***
         String productId = cusView.tfId.getText().trim();
         if(!productId.isEmpty()){
             theProduct = databaseRW.searchByProductId(productId); //search database
@@ -42,49 +81,78 @@ public class CustomerModel {
                 double unitPrice = theProduct.getUnitPrice();
                 String description = theProduct.getProductDescription();
                 int stock = theProduct.getStockQuantity();
-
                 String baseInfo = String.format("Product_Id: %s\n%s,\nPrice: £%.2f", productId, description, unitPrice);
                 String quantityInfo = stock < 100 ? String.format("\n%d units left.", stock) : "";
                 displayLaSearchResult = baseInfo + quantityInfo;
                 System.out.println(displayLaSearchResult);
-            }
-            else{
+            }else{
                 theProduct=null;
                 displayLaSearchResult = "No Product was found with ID " + productId;
                 System.out.println("No Product was found with ID " + productId);
-            }
-        }else{
+            } }else{
             theProduct=null;
             displayLaSearchResult = "Please type ProductID";
-            System.out.println("Please type ProductID.");
-        }
-        updateView();
+            System.out.println("Please type ProductID.");}
+        updateView(); */
     }
 
-    void addToTrolley(){
+    /**
+     * Adds currently selected product from the views listview product list to the trolley.
+     * <p>
+     * If product is already in trolley, increments amount ordered.
+     * Otherwise, adds the product to the trolley.
+     * Trolley is then sorted by product ID.
+     * Updates the display string for the trolley.
+     * <p>
+     * If no product is selected, displays a message to the user.
+     */
+    void addToTrolley() {
+        Product selectedProduct = cusView.obrLvProducts.getSelectionModel().getSelectedItem();
+        if (selectedProduct == null) {
+            displayLaSearchResult = "Please select an available product before adding it to the trolley.";
+            System.out.println("No product selected before adding to trolley.");
+            updateView();
+            return;
+        }
+
+        boolean found = false;
+        for (Product p : trolley) {
+            if (selectedProduct.getProductId().equals(p.getProductId())) {
+                p.setOrderedQuantity(p.getOrderedQuantity() + 1);
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            trolley.add(selectedProduct);
+        }
+
+        // Sort trolley by Product ID can use other comparator
+        trolley = OrganizeTrolley(trolley, Comparator.comparing(Product::getProductId));
+        // Build the display string
+        displayTaTrolley = ProductListFormatter.buildString(trolley);
+        displayTaReceipt = "";
+
+        updateView();
+        /* ***PLACEHOLDER NO LONGER NEEDED, ABOVE CODE SERVES SIMILAR PURPOSE HOWEVER BELOW CODE IS LEFT IN FOR COMPARISON***
         if(theProduct!= null){
             boolean found = false;      // Bool to track in product is already in trolley
             for (Product p : trolley){  // Checks if product is already in trolley
                 if(theProduct.getProductId().equals(p.getProductId())){
                     p.setOrderedQuantity(p.getOrderedQuantity() + 1);
                     found = true;
-                    break;
-                }
-            }
+                    break; }}
             if (!found){
                 // trolley.add(theProduct) — Product is appended to the end of the trolley.
-                trolley.add(theProduct);
-            }
+                trolley.add(theProduct); }
             //  CAN USE OrganizeTrolley() WITHOUT COMPARATOR, COMPARATOR VERSION IS USED FOR FLEXIBILITY
             trolley = OrganizeTrolley(trolley, Comparator.comparing(Product::getProductId));
-            displayTaTrolley = ProductListFormatter.buildString(trolley); // Build a String for trolley so that we can show it
-        }
+            displayTaTrolley = ProductListFormatter.buildString(trolley); // Build a String for trolley so that we can show it }
         else{
             displayLaSearchResult = "Please search for an available product before adding it to the trolley";
-            System.out.println("must search and get an available product before add to trolley");
-        }
+            System.out.println("must search and get an available product before add to trolley");}
         displayTaReceipt=""; // Clear receipt to switch back to trolleyPage (receipt shows only when not empty)
-        updateView();
+        updateView();*/
     }
 
     void checkOut() throws IOException, SQLException {
@@ -167,11 +235,11 @@ public class CustomerModel {
     }
 
     /**
-     * Groups products by their productId to optimize database queries and updates.
-     * By grouping products, we can check the stock for a given `productId` once, rather than repeatedly
+     * Groups products by productId to better display to the user.
+     * Grouping products, we can check stock for a `productId` once, rather than multiple times
      *
-     * @param proList The list of products to group.
-     * @return A new ArrayList of products, each with unique productId and correct total orderedQuantity.
+     * @param proList The list of products.
+     * @return A new productsArrayList, with unique product ids.
      */
     private ArrayList<Product> groupProductsById(ArrayList<Product> proList) {
         Map<String, Product> grouped = new HashMap<>();
@@ -218,6 +286,7 @@ public class CustomerModel {
         else{
             imageName = "imageHolder.jpg";
         }
+        cusView.updateObservableProductList(searchList);
         cusView.update(imageName, displayLaSearchResult, displayTaTrolley,displayTaReceipt);
     }
      // extra notes:
@@ -230,16 +299,16 @@ public class CustomerModel {
     }
 
     /**
-     * Organizes (sorts) the products in the trolley by their product ID in ascending order.
+     * Sorts products in trolley by product ID in ascending order.
      * <p>
-     * This method uses Java's built-in functional-style Comparator with a method reference,
-     * which is equivalent in functionality to a lambda expression such as:
+     * This method uses a Comparator with a method reference,
+     * which is functionally equivalent to a lambda expression such as:
      * <pre>{@code
      * prodList.sort((p1, p2) -> p1.getProductId().compareTo(p2.getProductId()));
      * }</pre>
-     * Using method references makes the intent clearer and code more concise.
+     * Using the method references makes the intent clearer.
      *
-     * @param prodList The list of products currently in the customer's trolley.
+     * @param prodList The list of products in the customer's trolley.
      * @ret
      * */
     public ArrayList<Product> OrganizeTrolley(ArrayList<Product> prodList) {
@@ -254,10 +323,9 @@ public class CustomerModel {
     }
 
     /**
-     * Sorts the trolley by a custom comparator.
+     * Sorts trolley with a custom comparator.
      * <p>
-     * This allows sorting by product ID, price, description, etc.,
-     * promoting flexibility and extensibility in the storefront design.
+     * This allows sorting by multiple types, like id price or name.
      * <p>
      * Example usage:
      * <pre>{@code
@@ -272,7 +340,17 @@ public class CustomerModel {
             return prodList;
         }
 
-        prodList.sort(Comparator.comparing(Product::getProductId));
+        prodList.sort(comparator);
         return prodList;
+    }
+
+    /**
+     * Handles scenario when user didn't enter any search keyword.
+     * Clears state and prepares message.
+     */
+    private void handleEmptySearch() {
+        searchList.clear();
+        theProduct = null;
+        displayLaSearchResult = "Please enter a Product ID or Name.";
     }
 }
