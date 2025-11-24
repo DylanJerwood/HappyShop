@@ -7,6 +7,7 @@ import ci553.happyshop.utility.WinPosManager;
 import ci553.happyshop.utility.WindowBounds;
 import javafx.collections.FXCollections;
 import javafx.event.ActionEvent;
+import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Scene;
@@ -43,13 +44,13 @@ public class CustomerView  {
     private HBox hbRoot; // Top-level layout manager
     private VBox vbTrolleyPage;  //vbTrolleyPage and vbReceiptPage will swap with each other when need
     private VBox vbReceiptPage;
+    private ListView<Product> trolleyList = new ListView<>();
 
     TextField tfId; //for user input on the search page. Made accessible so it can be accessed or modified by CustomerModel
 
     //four controllers needs updating when program going on
     private ImageView ivProduct; //image area in searchPage
     private Label lbProductInfo;//product text info in searchPage
-    private TextArea taTrolley; //in trolley Page
     private TextArea taReceipt;//in receipt page
 
     // Holds a reference to this CustomerView window for future access and management
@@ -148,13 +149,13 @@ public class CustomerView  {
         obrLvProducts.setStyle(UIStyle.listViewStyle);
         HBox searchList = new HBox(5, obrLvProducts);
 
-        /**
-         * When is setCellFactory() Needed?
-         * If you want to customize each row’s content (e.g.,images, buttons, labels, etc.).
-         * If you need special formatting (like colors or borders).
-         *
-         * When is setCellFactory() NOT Needed?
-         * Each row is just plain text without images or formatting.
+        /*
+          When is setCellFactory() Needed?
+          If you want to customize each row’s content (e.g.,images, buttons, labels, etc.).
+          If you need special formatting (like colors or borders).
+          <p>
+          When is setCellFactory() NOT Needed?
+          Each row is just plain text without images or formatting.
          */
         obrLvProducts.setCellFactory(param -> new ListCell<Product>() {
             @Override
@@ -163,7 +164,7 @@ public class CustomerView  {
 
                 if (empty || product == null) {
                     setGraphic(null);
-                    System.out.println("setCellFactory - empty item");
+                    //System.out.println("setCellFactory - empty item");
                 } else {
                     String imageName = product.getProductImageName(); // Get image name (e.g. "0001.jpg")
                     String relativeImageUrl = StorageLocation.imageFolder + imageName;
@@ -194,14 +195,80 @@ public class CustomerView  {
         return vbSearchPage;
     }
 
+    /**
+     * Creates Trolley page UI.
+     * Uses ListView to display products in trolley with compact layout:
+     * - Product ID and description
+     * - Unit price
+     * - Quantity TextField with +/- buttons
+     * - Remove button and total price
+     *
+     * @return VBox containing the trolley page
+     */
     private VBox CreateTrolleyPage() {
         Label laPageTitle = new Label("🛒🛒  Trolley 🛒🛒");
         laPageTitle.setStyle(UIStyle.labelTitleStyle);
+        // Configure ListView
+        trolleyList.setPrefHeight(HEIGHT - 100);
+        trolleyList.setStyle(UIStyle.listViewStyle);
 
-        taTrolley = new TextArea();
-        taTrolley.setEditable(false);
-        taTrolley.setPrefSize(WIDTH/2, HEIGHT-50);
+        trolleyList.setCellFactory(listView -> new ListCell<Product>() {
+            @Override
+            protected void updateItem(Product product, boolean empty) {
+                super.updateItem(product, empty);
+                if (empty || product == null) {
+                    setGraphic(null);
+                    return;
+                }
 
+                // Product Info (ID + Description)
+                Label lblID = new Label(product.getProductId());
+                Label lblName = new Label(product.getProductDescription());
+                lblName.setMaxWidth(150);
+                lblName.setWrapText(true);
+                VBox vbInfo = new VBox(2, lblID, lblName);
+
+                // Price, Quantity, +/- buttons
+                Label lblPrice = new Label(String.format("£%.2f", product.getUnitPrice()));
+                TextField tfQuantity = new TextField(String.valueOf(product.getOrderedQuantity()));
+                tfQuantity.setPrefWidth(40);
+
+                // Handle input via processQuantityInput
+                tfQuantity.focusedProperty().addListener((obs, oldVal, newVal) -> {
+                    if (!newVal) processQuantityInput(tfQuantity, product);
+                });
+                tfQuantity.setOnAction(e -> processQuantityInput(tfQuantity, product));
+
+                // +/- buttons stacked vertically
+                Button btnPlus = new Button("+");
+                Button btnMinus = new Button("-");
+                btnPlus.setPrefSize(20, 20);
+                btnMinus.setPrefSize(20, 20);
+                btnPlus.setOnAction(e -> cusController.changeOrderQuantity(product, +1));
+                btnMinus.setOnAction(e -> cusController.changeOrderQuantity(product, -1));
+
+                VBox vbBtns = new VBox(2, btnPlus, btnMinus);
+                vbBtns.setPadding(Insets.EMPTY);
+                vbBtns.setAlignment(Pos.CENTER);
+
+                HBox hbQty = new HBox(5, lblPrice, tfQuantity, vbBtns);
+                hbQty.setAlignment(Pos.CENTER);
+
+                // Remove button + total price
+                Button btnRemove = new Button("🗑");
+                btnRemove.setOnAction(e -> cusController.removeFromTrolley(product));
+                Label lblTotalPrice = new Label(String.format("£%.2f", product.getUnitPrice() * product.getOrderedQuantity()));
+                VBox vbActions = new VBox(2, btnRemove, lblTotalPrice);
+                vbActions.setAlignment(Pos.CENTER);
+
+                // Combine all into row
+                HBox row = new HBox(10, vbInfo, hbQty, vbActions);
+                row.setAlignment(Pos.CENTER_LEFT);
+                HBox.setHgrow(vbInfo, Priority.ALWAYS);
+
+                setGraphic(row);
+            }
+        });
         Button btnCancel = new Button("Cancel");
         btnCancel.setOnAction(this::buttonClicked);
         btnCancel.setStyle(UIStyle.buttonStyle);
@@ -214,10 +281,12 @@ public class CustomerView  {
         hbBtns.setStyle("-fx-padding: 15px;");
         hbBtns.setAlignment(Pos.CENTER);
 
-        vbTrolleyPage = new VBox(15, laPageTitle, taTrolley, hbBtns);
+        // Assemble Trolley Page
+        VBox vbTrolleyPage = new VBox(15, laPageTitle, trolleyList, hbBtns);
         vbTrolleyPage.setPrefWidth(COLUMN_WIDTH);
         vbTrolleyPage.setAlignment(Pos.TOP_CENTER);
         vbTrolleyPage.setStyle("-fx-padding: 15px;");
+
         return vbTrolleyPage;
     }
 
@@ -262,12 +331,11 @@ public class CustomerView  {
     }
 
 
-    public void update(String imageName, String searchResult, String trolley, String receipt) {
-
+    public void update(String imageName, String searchResult, ArrayList<Product> trolley, String receipt) {
         ivProduct.setImage(new Image(imageName));
         lbProductInfo.setText(searchResult);
-        taTrolley.setText(trolley);
-        if (!receipt.equals("")) {
+        updateTrolley(trolley);
+        if (!receipt.isEmpty()) {
             showTrolleyOrReceiptPage(vbReceiptPage);
             taReceipt.setText(receipt);
         }
@@ -291,5 +359,38 @@ public class CustomerView  {
     void updateObservableProductList( ArrayList<Product> productList ) {
         obeProductList.clear();
         obeProductList.addAll(productList);
+    }
+
+    /**
+     * Updates trolley ListView with the current list of products.
+     * Clears and resets the products.
+     * @param trolley Current list of products in the trolley.
+     */
+    public void updateTrolley(ArrayList<Product> trolley) {
+        if (trolley == null) {
+            trolleyList.getItems().clear();
+        } else {
+            trolleyList.getItems().setAll(trolley);
+        }
+    }
+
+    /**
+     * Processes the quantity user entered and updates the model.
+     * Handles invalid input and removes products if quantity < 1.
+     *
+     * @param tfQuantity TextField where the user enters the desired quantity.
+     * @param product The product associated with this TextField.
+     */
+    private void processQuantityInput(TextField tfQuantity, Product product) {
+        try {
+            int newQty = Integer.parseInt(tfQuantity.getText());
+            if (newQty < 1) {
+                cusController.removeFromTrolley(product);
+            } else {
+                cusController.changeOrderQuantity(product, newQty - product.getOrderedQuantity());
+            }
+        } catch (NumberFormatException ex) {
+            tfQuantity.setText(String.valueOf(product.getOrderedQuantity())); // revert invalid input
+        }
     }
 }

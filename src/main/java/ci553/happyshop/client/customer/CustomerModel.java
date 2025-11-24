@@ -107,6 +107,7 @@ public class CustomerModel {
      * If no product is selected, displays a message to the user.
      */
     void addToTrolley() {
+        // Finds which item is currently selected in the listview
         Product selectedProduct = cusView.obrLvProducts.getSelectionModel().getSelectedItem();
         if (selectedProduct == null) {
             displayLaSearchResult = "Please select an available product before adding it to the trolley.";
@@ -124,7 +125,7 @@ public class CustomerModel {
             }
         }
         if (!found) {
-            trolley.add(selectedProduct);
+            trolley.add(new Product(selectedProduct));
         }
 
         // Sort trolley by Product ID can use other comparator
@@ -180,7 +181,7 @@ public class CustomerModel {
                 System.out.println(displayTaReceipt);
             }
             else {  // Some products have insufficient stock— build an error message to inform the customer
-                // --- Step 1: Prepare notification message and update trolley accordingly ---
+                // Prep notif message and update trolley
                 StringBuilder errorMsg = new StringBuilder("The following products have insufficient stock:\n");
 
                 // Use an iterator to safely modify the trolley
@@ -212,7 +213,7 @@ public class CustomerModel {
                     }
                 }
                 theProduct = null;
-                // --- Step 2: Notify customer using a popup window ---
+                // Notify customer using a popup window
                 RemoveProductNotifier removeProductNotifier = new RemoveProductNotifier();
                 removeProductNotifier.setCusView(cusView);
                 removeProductNotifier.showRemovalMsg(errorMsg.toString());
@@ -220,7 +221,7 @@ public class CustomerModel {
                 // schedule notifier to close automatically after a delay
                 removeProductNotifier.closeNotifierWindowAfterDelay(30000);
 
-                // --- Step 3: Refresh UI display ---
+                // Refresh UI display
                 displayTaTrolley = ProductListFormatter.buildString(trolley);
                 displayLaSearchResult = "Checkout failed due to insufficient stock:\n" + errorMsg;
                 System.out.println("Stock insufficient — customer notified.");
@@ -287,7 +288,7 @@ public class CustomerModel {
             imageName = "imageHolder.jpg";
         }
         cusView.updateObservableProductList(searchList);
-        cusView.update(imageName, displayLaSearchResult, displayTaTrolley,displayTaReceipt);
+        cusView.update(imageName, displayLaSearchResult, trolley, displayTaReceipt);
     }
      // extra notes:
      //Path.toUri(): Converts a Path object (a file or a directory path) to a URI object.
@@ -310,7 +311,7 @@ public class CustomerModel {
      *
      * @param prodList The list of products in the customer's trolley.
      * @ret
-     * */
+     **/
     public ArrayList<Product> OrganizeTrolley(ArrayList<Product> prodList) {
         if (prodList == null || prodList.isEmpty()) {  // validation check against empty lists
             return prodList;
@@ -352,5 +353,26 @@ public class CustomerModel {
         searchList.clear();
         theProduct = null;
         displayLaSearchResult = "Please enter a Product ID or Name.";
+    }
+
+    /**
+     * Updates quantity of a product in the trolley, or removes it if quantity <= 0.
+     *
+     * @param product The product to update or remove.
+     * @param newQuantity The new desired quantity. If <= 0, the product is removed.
+     */
+    public void updateTrolleyProductQuantity(Product product, int newQuantity) {
+        if (product == null) return;
+
+        if (newQuantity <= 0) {
+            trolley.remove(product);
+        } else {
+            product.setOrderedQuantity(newQuantity);
+            if (!trolley.contains(product)) {
+                trolley.add(product); // add back if it was removed
+            }
+        }
+
+        updateView(); // refresh the view
     }
 }

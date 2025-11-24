@@ -35,6 +35,16 @@ public class Product implements Comparable<Product> {
         this.stockQuantity = stockQuantity;
     }
 
+    // Copy constructor to use in model without saved changes
+    public Product(Product other) {
+        this.proId = other.proId;
+        this.proDescription = other.proDescription;
+        this.proImageName = other.proImageName;
+        this.unitPrice = other.unitPrice;
+        this.stockQuantity = other.stockQuantity;
+        this.orderedQuantity = other.orderedQuantity; // start with same quantity
+    }
+
     // a set of getter methods
     public String getProductId() { return proId;}
     public String getProductDescription() { return proDescription;}
