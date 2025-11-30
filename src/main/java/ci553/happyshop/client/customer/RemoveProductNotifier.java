@@ -42,6 +42,7 @@ public class RemoveProductNotifier {
     private Stage window; //window for ProductRemovalNotifier
     private Scene scene; // Scene for ProductRemovalNotifier
     private TextArea taRemoveMsg;// TextArea to display removal products messages
+    private Label laCustomerAction;
 
     // Create the Scene (only once)
     private void createScene() {
@@ -54,7 +55,7 @@ public class RemoveProductNotifier {
         taRemoveMsg.setPrefHeight(80);
         taRemoveMsg.setStyle(UIStyle.alertContentTextAreaStyle);
 
-        Label laCustomerAction = new Label(cutomerActionBuilder());
+        laCustomerAction = new Label(cutomerActionBuilder());
         laCustomerAction.setWrapText(true);
         laCustomerAction.setStyle(UIStyle.alertContentUserActionStyle);
 
@@ -139,5 +140,11 @@ public class RemoveProductNotifier {
         PauseTransition delay = new PauseTransition(Duration.millis(milliseconds));
         delay.setOnFinished(e -> closeNotifierWindow());
         delay.play();
+    }
+
+    public void setCustomerActionMessage(String message) {
+        if (laCustomerAction != null) {
+            laCustomerAction.setText(message);
+        }
     }
 }

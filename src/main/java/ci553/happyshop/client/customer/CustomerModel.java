@@ -1,7 +1,10 @@
 package ci553.happyshop.client.customer;
 
+import ci553.happyshop.businessRules.OrderRules;
 import ci553.happyshop.catalogue.Order;
 import ci553.happyshop.catalogue.Product;
+import ci553.happyshop.catalogue.exception.ExcessiveOrderQuantityException;
+import ci553.happyshop.catalogue.exception.UnderMinimumPaymentException;
 import ci553.happyshop.storageAccess.DatabaseRW;
 import ci553.happyshop.orderManagement.OrderHub;
 import ci553.happyshop.utility.StorageLocation;
@@ -157,7 +160,15 @@ public class CustomerModel {
     }
 
     void checkOut() throws IOException, SQLException {
-        if(!trolley.isEmpty()){
+        if (trolley.isEmpty()) {
+            displayTaTrolley = "Your trolley is empty";
+            System.out.println("Your trolley is empty");
+            updateView();
+            return;
+        }
+        try {
+            valiadteTrolley(trolley);
+
             // Group the products in the trolley by productId to optimize stock checking
             // Check the database for sufficient stock for all products in the trolley.
             // If any products are insufficient, the update will be rolled back.
@@ -166,71 +177,15 @@ public class CustomerModel {
             ArrayList<Product> groupedTrolley = groupProductsById(trolley);
             ArrayList<Product> insufficientProducts = databaseRW.purchaseStocks(groupedTrolley);
 
-            if(insufficientProducts.isEmpty()){ // If stock is sufficient for all products
-                //get OrderHub and tell it to make a new Order
-                OrderHub orderHub =OrderHub.getOrderHub();
-                Order theOrder = orderHub.newOrder(trolley);
-                trolley.clear();
-                displayTaTrolley ="";
-                displayTaReceipt = String.format(
-                        "Order_ID: %s\nOrdered_Date_Time: %s\n%s",
-                        theOrder.getOrderId(),
-                        theOrder.getOrderedDateTime(),
-                        ProductListFormatter.buildString(theOrder.getProductList())
-                );
-                System.out.println(displayTaReceipt);
+            if (insufficientProducts.isEmpty()) {
+                handleSuccessfulCheckout();
             }
-            else {  // Some products have insufficient stock— build an error message to inform the customer
-                // Prep notif message and update trolley
-                StringBuilder errorMsg = new StringBuilder("The following products have insufficient stock:\n");
-
-                // Use an iterator to safely modify the trolley
-                Iterator<Product> trolleyIterator = trolley.iterator();
-                while (trolleyIterator.hasNext()) {
-                    Product trolleyProduct = trolleyIterator.next();
-
-                    // Check if this product has insufficient stock
-                    for (Product p : insufficientProducts) {
-                        if (trolleyProduct.getProductId().equals(p.getProductId())) {
-                            int available = p.getStockQuantity();
-                            int requested = trolleyProduct.getOrderedQuantity();
-                            // Append info to the customer message
-                            errorMsg.append(String.format("• %s, %s (Only %d available, %d requested)\n",
-                                    trolleyProduct.getProductId(),
-                                    trolleyProduct.getProductDescription(),
-                                    available,
-                                    requested
-                            ));
-                            // Adjust trolley quantities based on stock
-                            if (available > 0) {
-                                trolleyProduct.setOrderedQuantity(available);
-                            } else {
-                                // Remove product if none left
-                                trolleyIterator.remove();
-                            }
-                            break; // Stop searching insufficientProducts once matched
-                        }
-                    }
-                }
-                theProduct = null;
-                // Notify customer using a popup window
-                RemoveProductNotifier removeProductNotifier = new RemoveProductNotifier();
-                removeProductNotifier.setCusView(cusView);
-                removeProductNotifier.showRemovalMsg(errorMsg.toString());
-
-                // schedule notifier to close automatically after a delay
-                removeProductNotifier.closeNotifierWindowAfterDelay(30000);
-
-                // Refresh UI display
-                displayTaTrolley = ProductListFormatter.buildString(trolley);
-                displayLaSearchResult = "Checkout failed due to insufficient stock:\n" + errorMsg;
-                System.out.println("Stock insufficient — customer notified.");
+            else  {
+                handleStockFailure(insufficientProducts);
             }
         }
-        else{
-
-            displayTaTrolley = "Your trolley is empty";
-            System.out.println("Your trolley is empty");
+        catch (UnderMinimumPaymentException | ExcessiveOrderQuantityException ex) { // If the trolley breaks either exception
+            handleCheckoutException(ex);    // Notifier is made and told to the user
         }
         updateView();
     }
@@ -374,5 +329,186 @@ public class CustomerModel {
         }
 
         updateView(); // refresh the view
+    }
+
+    /**
+     * Validates trolley before checkout to ensure that:
+     * <ul>
+     *     <li> Product quantities do not exceed their maximum.</li>
+     *     <li> Total payment meets the minimum threshold.</li>
+     * </ul>
+     *
+     * @param tr the list of products representing the customer's trolley
+     *
+     * @throws ExcessiveOrderQuantityException if any product exceeds its maximum allowed quantity
+     * @throws UnderMinimumPaymentException    if the trolley total is below the minimum payment threshold
+     */
+    private void valiadteTrolley(List<Product> tr) throws UnderMinimumPaymentException, ExcessiveOrderQuantityException{
+        if (tr == null || tr.isEmpty()) {   // Validation check fro robustness
+            throw new IllegalArgumentException("Trolley cant be null or empty");
+        }
+
+        validateQuantities(trolley);
+        validatePayment(trolley);
+    }
+
+    /**
+     * Validates no product exceeds trolley/product maximum quantity.
+     *
+     * <p>If a violation is detected, an {@link ExcessiveOrderQuantityException} is thrown
+     * with details about the specified product </p>
+     *
+     * @param tr product list to validate
+     * @throws ExcessiveOrderQuantityException Exception for when Products maxQuantity is exceeded
+     */
+    private void validateQuantities(List<Product> tr) throws ExcessiveOrderQuantityException{
+        for (Product p : tr) {
+            if (p.getOrderedQuantity() > p.getMaxQuantity()) {
+                throw new ExcessiveOrderQuantityException(
+                        p.getProductId(), p.getOrderedQuantity(), p.getMaxQuantity()
+                );
+            }
+        }
+    }
+
+    /**
+     * Validates trolley meets minimum value. Calculates total current trolley cost,
+     * and compares it to OrderRules MINIMUM_PAYMENT
+     *
+     * <p>If a violation is detected, an {@link UnderMinimumPaymentException} is thrown
+     * with details about the specified product </p>
+     *
+     * @param tr product list to validate
+     * @throws UnderMinimumPaymentException Exception for when Trolley doesn't meet OrderRules MINIMUM_PAYMENT
+     */
+    private void validatePayment(List<Product> tr) throws UnderMinimumPaymentException{
+        double total = 0;
+        for (Product p : tr) {
+            total += p.getOrderedQuantity() * p.getUnitPrice();
+        }
+        if (total < OrderRules.MINIMUM_PAYMENT) {
+            throw new UnderMinimumPaymentException(total, OrderRules.MINIMUM_PAYMENT);
+        }
+    }
+
+    /**
+     * Handles exceptions during the checkout process, displays the appropriate
+     * messages depending on the exception type and perform corrective actions.
+     *
+     * @param ex The exception called during the trolley checkout.
+     */
+    private void handleCheckoutException(Exception ex) {
+        RemoveProductNotifier notifier = new RemoveProductNotifier();
+        notifier.setCusView(cusView);
+        notifier.showRemovalMsg(ex.getMessage());
+
+        //Customize the customer action label in the notifier depending on exception
+        if(ex instanceof ExcessiveOrderQuantityException){
+            StringBuilder actions = new StringBuilder(" \u26A1 You can now: \n");
+            actions.append("\u2022 Checkout your trolley as it is with the maximum available quantity\n");
+            actions.append("\u2022 Or cancel your trolley if you no longer wish to proceed.\n");
+            actions.append("Thank you for understanding! \n");
+            notifier.setCustomerActionMessage(actions.toString());
+            // Apply quantity correction AFTER notifying the user
+            adjustQuantatiesToMax(trolley);
+        }
+        else if (ex instanceof UnderMinimumPaymentException){
+            StringBuilder actions = new StringBuilder(" \u26A1 You can now: \n");
+            actions.append("\u2022 Increase your trolley value to the value minimum\n");
+            actions.append("\u2022 Or cancel your trolley if you no longer wish to proceed.\n");
+            actions.append("Thank you for understanding! \n");
+            notifier.setCustomerActionMessage(actions.toString());
+        }
+
+        notifier.closeNotifierWindowAfterDelay(30000);
+        displayLaSearchResult = "Checkout failed:\n" + ex.getMessage();
+    }
+
+    /**
+     * Handles and completes the checkout after trolley has been validated. Creates a new order from OrderHub.
+     * Then clears the trolley and builds a receipt text for the user.
+     *
+     * @throws IOException
+     * @throws SQLException
+     */
+    private void handleSuccessfulCheckout() throws IOException, SQLException{
+        // Create new order
+        OrderHub orderHub = OrderHub.getOrderHub();
+        Order order = orderHub.newOrder(trolley);
+        // Clear trolley after successfully order
+        trolley.clear();
+        displayTaTrolley = "";
+        // Build text for receipt UI
+        displayTaReceipt = String.format(
+                "order_ID: %s\nOrdered_Date_Time: %s\n%s",
+                order.getOrderId(),
+                order.getOrderedDateTime(),
+                ProductListFormatter.buildString(order.getProductList())
+        );
+        System.out.println(displayTaReceipt);
+    }
+
+    /**
+     * Handles when products in the trolley don't have enough stock.
+     *
+     * <p> This method:
+     * <ul>
+     *     <li>Generates a message displaying the products with insufficient stock</li>
+     *     <li>Adjusts quantities of products to max available amount</li>
+     *     <li>Removes products with 0 stock from trolley</li>
+     *     <li>Displays notification via {@link RemoveProductNotifier}/li>
+     * </ul></p>
+     *
+     * @param insufficientProducts product list from trolley with insufficient stock
+     */
+    private void handleStockFailure(ArrayList<Product> insufficientProducts) {
+        StringBuilder msg = new StringBuilder("The following products have insufficient stock:\n");
+
+        Iterator<Product> iter = trolley.iterator();
+        while (iter.hasNext()) {
+            Product t = iter.next();
+            for (Product insufficient : insufficientProducts) {
+                if (t.getProductId().equals(insufficient.getProductId())) {
+                    int available = insufficient.getStockQuantity();
+                    int requested = t.getOrderedQuantity();
+                    msg.append(String.format(
+                            "• %s, %s (Only %d available, %d requested)\n",
+                            t.getProductId(),
+                            t.getProductDescription(),
+                            available,
+                            requested
+                    ));
+                    if (available > 0) {
+                        t.setOrderedQuantity(available);
+                    } else {
+                        iter.remove();
+                    }
+                }
+            }
+        }
+        RemoveProductNotifier notifier = new RemoveProductNotifier();
+        notifier.setCusView(cusView);
+        notifier.showRemovalMsg(msg.toString());
+        notifier.closeNotifierWindowAfterDelay(30000);
+        displayTaTrolley = ProductListFormatter.buildString(trolley);
+        displayLaSearchResult = "Checkout failed due to insufficient stock:\n" + msg;
+    }
+
+    /**
+     * Reduces the ordered quantities of products in the trolley to their maximum
+     * if desired quantity is exceeded.
+     *
+     * @param tr List of products to validate max available isn't exceeded
+     */
+    private void adjustQuantatiesToMax(List<Product> tr) {
+        for (Product p : tr) {
+            if (p.getOrderedQuantity() > p.getMaxQuantity()) {
+                p.setOrderedQuantity(p.getMaxQuantity());
+            }
+            else if (p.getOrderedQuantity() > p.getStockQuantity()) {
+                p.setOrderedQuantity(p.getStockQuantity());
+            }
+        }
+        updateView();
     }
 }

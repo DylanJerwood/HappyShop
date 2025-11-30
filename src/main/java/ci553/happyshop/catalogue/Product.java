@@ -18,6 +18,7 @@ public class Product implements Comparable<Product> {
     private double unitPrice;
     private int orderedQuantity =1; //The quantity of this product in the customer's order.
     private int stockQuantity;//
+    private  int maxQuantity = 50;  // The max quantity a user can have in the trolley
 
     /**
      * Constructor,used by DatabaseRW, make product from searching ResultSet
@@ -52,6 +53,7 @@ public class Product implements Comparable<Product> {
     public double getUnitPrice() { return unitPrice;}
     public int getOrderedQuantity() { return orderedQuantity;}
     public int getStockQuantity() { return stockQuantity;}
+    public int getMaxQuantity() { return maxQuantity;}
 
     //a setter method
     public void setOrderedQuantity(int orderedQuantity) {
