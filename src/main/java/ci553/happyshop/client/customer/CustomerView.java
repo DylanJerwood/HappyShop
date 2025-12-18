@@ -46,7 +46,7 @@ public class CustomerView  {
     private VBox vbReceiptPage;
     private ListView<Product> trolleyList = new ListView<>();
 
-    TextField tfId; //for user input on the search page. Made accessible so it can be accessed or modified by CustomerModel
+    public TextField tfId; //for user input on the search page. Made accessible so it can be accessed or modified by CustomerModel
 
     //four controllers needs updating when program going on
     private ImageView ivProduct; //image area in searchPage
@@ -58,7 +58,7 @@ public class CustomerView  {
     private Stage viewWindow;
 
     private ObservableList<Product> obeProductList; //observable product list to display products from search
-    ListView<Product> obrLvProducts; //A ListView observes the product list
+    public ListView<Product> obrLvProducts; //A ListView observes the product list
 
     public void start(Stage window) {
         VBox vbSearchPage = createSearchPage();

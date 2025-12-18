@@ -6,7 +6,10 @@ import ci553.happyshop.client.orderTracker.OrderTracker;
 import ci553.happyshop.client.picker.PickerModel;
 import ci553.happyshop.storageAccess.OrderFileManager;
 import ci553.happyshop.utility.StorageLocation;
+import com.sun.source.tree.Tree;
 
+import java.beans.PropertyChangeListener;
+import java.beans.PropertyChangeSupport;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -21,6 +24,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
+
 
 /**
  * <p>{@code OrderHub} serves as the heart of the ordering system.
@@ -52,17 +56,16 @@ public class OrderHub  {
     private TreeMap<Integer,OrderState> progressingOrderMap = new TreeMap<>();
 
     /**
-     * Two Lists to hold all registered OrderTracker and PickerModel observers.
+     * List to hold all registered PickerModel observers.
      * These observers are notified whenever the orderMap is updated,
-     * but each observer is only notified of the parts of the orderMap that are relevant to them.
-     * - OrderTrackers will be notified of the full orderMap, including all orders (ordered, progressing, collected),
-     *   but collected orders are shown for a limited time (10 seconds).
+     * observer is only notified of the parts of the orderMap that are relevant to them.
      * - PickerModels will be notified only of orders in the "ordered" or "progressing" states, filtering out collected orders.
      */
-    private ArrayList<OrderTracker> orderTrackerList = new ArrayList<>();
     private ArrayList<PickerModel> pickerModelList = new ArrayList<>();
 
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+
+    private final PropertyChangeSupport pcs = new PropertyChangeSupport(this);
 
     //Singleton pattern
     private OrderHub() {}
@@ -85,22 +88,22 @@ public class OrderHub  {
         Path path = orderedPath;
         OrderFileManager.createOrderFile(path, orderId, orderDetail);
 
+        TreeMap<Integer, OrderState> oldMap = new TreeMap<>(orderMap);
         orderMap.put(orderId, theOrder.getState()); //add the order to orderMap,state is Ordered initially
-        notifyOrderTrackers(); //notify OrderTrackers
+        notifyOrderTrackers(oldMap); //notify OrderTrackers
         notifyPickerModels();//notify pickers
         
         return theOrder;
     }
 
     //Registers an OrderTracker to receive updates about changes.
-    public void registerOrderTracker(OrderTracker orderTracker){
-        orderTrackerList.add(orderTracker);
+    public void addPropertyChangeListener(PropertyChangeListener propChangeListener) {
+        pcs.addPropertyChangeListener(propChangeListener);
     }
-     //Notifies all registered observer_OrderTrackers to update and display the latest orderMap.
-    public void notifyOrderTrackers(){
-        for(OrderTracker orderTracker : orderTrackerList){
-            orderTracker.setOrderMap(orderMap);
-        }
+
+    //Notifies all registered observer_OrderTrackers to update and display the latest orderMap.
+    public void notifyOrderTrackers(TreeMap<Integer,OrderState> oldmap) {
+        pcs.firePropertyChange("ordermap", oldmap, orderMap);
     }
 
     //Registers a PickerModel to receive updates about changes.
@@ -137,9 +140,10 @@ public class OrderHub  {
     public void changeOrderStateMoveFile(int orderId, OrderState newState) throws IOException {
         if(orderMap.containsKey(orderId) && !orderMap.get(orderId).equals(newState))
         {
+            TreeMap<Integer,OrderState> oldMap = new TreeMap<>(orderMap);
             //change orderState in OrderMap, notify OrderTrackers and pickers
             orderMap.put(orderId, newState);
-            notifyOrderTrackers();
+            notifyOrderTrackers(oldMap);
             notifyPickerModels();
 
             //change orderState in order file and move the file to new state folder
@@ -167,9 +171,10 @@ public class OrderHub  {
         if (orderMap.containsKey(orderId)) {
             // Schedule removal after a few seconds
             scheduler.schedule(() -> {
+                TreeMap<Integer, OrderState> oldMap = new TreeMap<>(orderMap);
                 orderMap.remove(orderId); //remove collected order
                 System.out.println("Order " + orderId + " removed from tracker and OrdersMap.");
-                notifyOrderTrackers();
+                notifyOrderTrackers(oldMap);
             }, 10, TimeUnit.SECONDS );
         }
     }
@@ -199,7 +204,8 @@ public class OrderHub  {
                 orderMap.put(orderId, OrderState.Progressing);
             }
         }
-        notifyOrderTrackers();
+        TreeMap<Integer, OrderState> oldMap = new TreeMap<>(orderMap);
+        notifyOrderTrackers(oldMap);
         notifyPickerModels();
         System.out.println("orderMap initilized. "+ orderMap.size() + " orders in total, including:");
         System.out.println( orderedIds.size() + " Ordered orders, " +progressingIds.size() + " Progressing orders " );
@@ -239,5 +245,4 @@ public class OrderHub  {
         }
         return orderIds;
     }
-
 }

@@ -159,6 +159,15 @@ public class CustomerModel {
         updateView();*/
     }
 
+    /**
+     * Validates users trolley according to orderRules and creates a new order and receipt if validation checks are passed
+     * <ul>
+     *     <li>If trolley is empty: prompts user to fill trolley and returns</li>
+     *     <li>If trolley fails validation in validateTrolley(): handleCheckoutException() is called, creating error message according to exception</li>
+     *     <li>If trolley passes validateTrolley(): Checks if there is enough stock, if not handleStockFailure() is called</li>
+     *     <li>if trolley passes all validation: handleSuccessfulCheckout() is called, creating order and receipt</li>
+     * </ul>
+     */
     void checkOut() throws IOException, SQLException {
         if (trolley.isEmpty()) {
             displayTaTrolley = "Your trolley is empty";
@@ -392,7 +401,7 @@ public class CustomerModel {
     }
 
     /**
-     * Handles exceptions during the checkout process, displays the appropriate
+     * Handles exceptions during checkout process, displays appropriate
      * messages depending on the exception type and perform corrective actions.
      *
      * @param ex The exception called during the trolley checkout.

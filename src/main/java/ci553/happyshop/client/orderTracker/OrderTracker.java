@@ -11,6 +11,8 @@ import javafx.scene.control.TextArea;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -20,7 +22,7 @@ import java.util.TreeMap;
  * The ordersMap data is received from the OrderHub.
  */
 
-public class OrderTracker {
+public class OrderTracker implements PropertyChangeListener {
     private final int WIDTH = UIStyle.trackerWinWidth;
     private final int HEIGHT = UIStyle.trackerWinHeight;
 
@@ -57,7 +59,7 @@ public class OrderTracker {
      */
     public void registerWithOrderHub(){
         OrderHub orderHub = OrderHub.getOrderHub();
-        orderHub.registerOrderTracker(this);
+        orderHub.addPropertyChangeListener(this);
     }
 
     /**
@@ -81,6 +83,15 @@ public class OrderTracker {
         }
         String textDisplay = sb.toString();
         taDisplay.setText(textDisplay);
+    }
+
+    @Override
+    public void propertyChange(PropertyChangeEvent evt) {
+        if ("ordermap".equals(evt.getPropertyName())) {
+            TreeMap<Integer, OrderState> newMap;
+            newMap = (TreeMap<Integer, OrderState>) evt.getNewValue();
+            setOrderMap(newMap);
+        }
     }
 
 }
